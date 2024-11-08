@@ -11,8 +11,6 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-#include "syscall.h"
-
 #ifndef PR_SET_SYSCALL_USER_DISPATCH
 #pragma message "PR_SET_SYSCALL_USER_DISPATCH was not defined in the system headers, this feature might not be supported by the host's kernel"
 /* Dispatch syscalls to a userspace handler */
@@ -41,12 +39,22 @@ static volatile char syscall_filter = SYSCALL_DISPATCH_FILTER_ALLOW;
 
 static void setup_filter(void)
 {
+    /*
+    RTLD_NOLOAD Don't load the shared object.  This can be used to test if
+    the object is already resident (dlopen() returns NULL if
+    it is not, or the object's handle if it is resident).
+    */
 	void *handle = dlopen("libc.so.6", RTLD_LAZY | RTLD_NOLOAD);
 	if (handle == NULL) {
 		fprintf(stderr, "dlopen: %s\n", dlerror());
 		exit(1);
 	}
-	//printf("libc at %p\n", handle);
+
+	/*
+	get the address of killpg, killpg is the function that sends signals
+	"Users of this interface should make sure that at least the signal
+	trampoline code is included in this region"
+	*/
 	void *sym = dlsym(handle, "killpg");
 	if (sym == NULL) {
 		fprintf(stderr, "dlsym: %s\n", dlerror());
@@ -79,7 +87,7 @@ static void sigsys_handler(int signo, siginfo_t *info, void *context)
 	ucontext_t *ctx = (ucontext_t *)context;
 #ifdef __x86_64__
 
-    // capture all syscall and prints args 
+    // capture all syscall and prints args
 	fprintf(stderr, "syscall: rax = %016llx, rdi = %016llx, rsi = %016llx, rdx = %016llx\n",
 		ctx->uc_mcontext.gregs[REG_RAX],
 		ctx->uc_mcontext.gregs[REG_RDI],
