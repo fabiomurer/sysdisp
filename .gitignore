@@ -1,2 +1,5 @@
 sysdisp
 *.o
+*.so
+simpleprog
+childprog
